@@ -2,21 +2,18 @@
 
 This repository contains a Next.js application for chess analysis, position recognition, and game review.
 
-## Structure Note
+## Key Components
+- ChessAnalysis.tsx - Engine analysis and board annotation
+- ChessImageUpload.tsx - Upload and recognition of chess positions from images
+- MoveHistory.tsx - Display and navigation of move history
+- PgnUpload.tsx - Upload and parsing of PGN files
 
-The GitHub repository contains some files that are not currently used in the local development environment. The active files are:
-
-### Main Components
-- ChessAnalysis.tsx
-- ChessImageUpload.tsx
-- MoveHistory.tsx
-- PgnUpload.tsx
-
-### Core Features
+## Core Features
 - Chess position analysis
 - Position recognition from images
 - PGN file upload and parsing
 - Move history tracking and navigation
+- Board annotation with arrows
 
 ## Local Development
 

@@ -1,55 +1,31 @@
-# Chesseds
+# Chess Analysis & Review App
 
-A chess education platform with PGN upload and analysis capabilities.
+This repository contains a Next.js application for chess analysis, position recognition, and game review.
 
-## Features
+## Structure Note
 
+The GitHub repository contains some files that are not currently used in the local development environment. The active files are:
+
+### Main Components
+- ChessAnalysis.tsx
+- ChessImageUpload.tsx
+- MoveHistory.tsx
+- PgnUpload.tsx
+
+### Core Features
+- Chess position analysis
+- Position recognition from images
 - PGN file upload and parsing
-- Interactive chess board
-- Move history navigation
-- Game analysis tools
+- Move history tracking and navigation
 
-## Tech Stack
+## Local Development
 
-- Frontend: React with Next.js
-- Chess Logic: chess.js
-- Styling: Tailwind CSS
-- UI Components: Heroicons
+Run the development server:
 
-## Getting Started
-
-1. Clone the repository:
-```bash
-git clone https://github.com/Abhi190k/chesseds.git
-```
-
-2. Install dependencies:
-```bash
-npm install
-```
-
-3. Run the development server:
 ```bash
 npm run dev
+# or
+yarn dev
 ```
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-## Project Structure
-
-```
-src/
-├── app/          # Next.js app directory
-├── components/   # React components
-├── types/        # TypeScript type definitions
-├── utils/        # Utility functions
-└── workers/      # Web workers
-```
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License.
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.

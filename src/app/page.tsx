@@ -1,129 +1,210 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Chess } from 'chess.js';
 import { Chessboard } from 'react-chessboard';
-import PgnUpload from '@/components/PgnUpload';
-import ChessImageUpload from '@/components/ChessImageUpload';
-import ChessAnalysis from '@/components/ChessAnalysis';
-import type { Square } from '@/types/chess';
+import { useDropzone } from 'react-dropzone';
+import { useStockfish } from '@/hooks/useStockfish';
+import { useChessboard } from '@/hooks/useChessboard';
+import { useGameHistory } from '@/hooks/useGameHistory';
+import { usePositionRecognition } from '@/hooks/usePositionRecognition';
+import { useWindowSize } from '@/hooks/useWindowSize';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { GameControls } from '@/components/GameControls';
+import { GameHistory } from '@/components/GameHistory';
+import { PositionAnalysis } from '@/components/PositionAnalysis';
+import { PositionRecognition } from '@/components/PositionRecognition';
+import { EngineSettings } from '@/components/EngineSettings';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { cn } from '@/lib/utils';
 
 export default function Home() {
-  const [game, setGame] = useState(new Chess());
-  const [moveHistory, setMoveHistory] = useState<string[]>([]);
-  const [currentMove, setCurrentMove] = useState(0);
-  const [arrows, setArrows] = useState<[Square, Square, string?][]>([]);
+  // State
+  const [activeTab, setActiveTab] = useState('play');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [orientation, setOrientation] = useState<'white' | 'black'>('white');
 
-  // Function to handle moves
-  const handleMove = useCallback((move: string) => {
+  // Refs
+  const boardRef = useRef<HTMLDivElement>(null);
+
+  // Custom hooks
+  const { width } = useWindowSize();
+  const {
+    game,
+    fen,
+    setFen,
+    makeMove,
+    undoMove,
+    resetGame,
+    isGameOver,
+    gameResult
+  } = useChessboard();
+
+  const {
+    engineLevel,
+    setEngineLevel,
+    engineDepth,
+    setEngineDepth,
+    isThinking,
+    bestMove,
+    evaluation,
+    startEngine,
+    stopEngine,
+    makeEngineMove
+  } = useStockfish();
+
+  const {
+    moves,
+    currentMoveIndex,
+    goToMove,
+    addMove,
+    clearHistory
+  } = useGameHistory();
+
+  const {
+    recognizePosition,
+    isRecognizing,
+    recognitionError
+  } = usePositionRecognition();
+
+  // Calculate board size based on window width
+  const getBoardSize = () => {
+    if (width < 640) return width - 32; // Small screens
+    if (width < 1024) return 480; // Medium screens
+    return 560; // Large screens
+  };
+
+  // Handle position recognition from image
+  const handleRecognizePosition = async (file: File) => {
     try {
-      const newGame = new Chess(game.fen());
-      const result = newGame.move(move);
-      
-      if (result) {
-        setGame(newGame);
-        setMoveHistory(prev => {
-          // If we're not at the end of the move history,
-          // we need to truncate the history at the current move
-          if (currentMove < prev.length) {
-            return [...prev.slice(0, currentMove), move];
-          }
-          return [...prev, move];
-        });
-        setCurrentMove(prev => prev + 1);
+      setIsLoading(true);
+      setError(null);
+      const newFen = await recognizePosition(file);
+      if (newFen) {
+        setFen(newFen);
+        clearHistory();
       }
-      return result;
-    } catch (error) {
-      console.error('Error making move:', error);
-      return null;
-    }
-  }, [game, currentMove]);
-
-  // Function to handle piece drops on the board
-  const onDrop = (sourceSquare: Square, targetSquare: Square) => {
-    try {
-      const move = handleMove({
-        from: sourceSquare,
-        to: targetSquare,
-        promotion: 'q' // Always promote to queen for simplicity
-      });
-      
-      return move !== null;
-    } catch (error) {
-      return false;
+    } catch (err) {
+      setError('Failed to recognize position from image');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Function to handle PGN file upload
-  const handlePgnLoaded = (loadedGame: Chess) => {
-    setGame(loadedGame);
-    setMoveHistory(loadedGame.history());
-    setCurrentMove(loadedGame.history().length);
-  };
-
-  // Function to handle image upload and position recognition
-  const handlePositionRecognized = (recognizedGame: Chess) => {
-    setGame(recognizedGame);
-    setMoveHistory([]);
-    setCurrentMove(0);
-  };
-
-  // Function to handle going to a specific move
-  const handleGoToMove = useCallback((moveIndex: number) => {
-    if (moveIndex < 0 || moveIndex > moveHistory.length) return;
-
-    const newGame = new Chess();
-    
-    // Replay all moves up to the selected index
-    for (let i = 0; i < moveIndex; i++) {
-      newGame.move(moveHistory[i]);
+  // Dropzone configuration
+  const { getRootProps, getInputProps } = useDropzone({
+    accept: {
+      'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp']
+    },
+    maxFiles: 1,
+    onDrop: async (acceptedFiles) => {
+      if (acceptedFiles.length > 0) {
+        await handleRecognizePosition(acceptedFiles[0]);
+      }
     }
-    
-    setGame(newGame);
-    setCurrentMove(moveIndex);
-  }, [moveHistory]);
+  });
 
-  // Function to handle arrow updates from analysis
-  const handleArrowsUpdate = useCallback((newArrows: [Square, Square, string?][]) => {
-    setArrows(newArrows);
-  }, []);
+  // Effect to start/stop engine
+  useEffect(() => {
+    if (activeTab === 'analysis') {
+      startEngine();
+    } else {
+      stopEngine();
+    }
+    return () => stopEngine();
+  }, [activeTab, startEngine, stopEngine]);
 
   return (
-    <main className="min-h-screen p-8 bg-gray-50">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-bold mb-8 text-center text-gray-800">
-          Chesseds
-        </h1>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div>
-            <div className="mb-4 space-y-4">
-              <PgnUpload onPgnLoaded={handlePgnLoaded} />
-              <ChessImageUpload onPositionRecognized={handlePositionRecognized} />
-            </div>
-            
-            <div className="aspect-square w-full max-w-2xl mx-auto">
+    <main className="container mx-auto p-4 min-h-screen">
+      <div className="grid lg:grid-cols-[auto,400px] gap-8">
+        {/* Left column - Chessboard */}
+        <div className="space-y-4">
+          <Card className="p-4">
+            <div ref={boardRef} style={{ width: getBoardSize() }}>
               <Chessboard
-                position={game.fen()}
-                onPieceDrop={onDrop}
-                customArrows={arrows}
-                boardWidth={800}
+                position={fen}
+                onPieceDrop={(source, target) => makeMove(source, target)}
+                boardOrientation={orientation}
+                customBoardStyle={{
+                  borderRadius: '4px',
+                }}
               />
             </div>
-          </div>
-          
-          <div>
-            <ChessAnalysis
-              game={game}
-              moveHistory={moveHistory}
-              onMove={handleMove}
-              onArrowsUpdate={handleArrowsUpdate}
-              onGoToMove={handleGoToMove}
-              currentMove={currentMove}
+            <GameControls
+              onFlipBoard={() => setOrientation(prev => prev === 'white' ? 'black' : 'white')}
+              onUndoMove={undoMove}
+              onResetGame={resetGame}
+              isGameOver={isGameOver}
+              gameResult={gameResult}
             />
-          </div>
+          </Card>
+        </div>
+
+        {/* Right column - Controls & Analysis */}
+        <div className="space-y-4">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="play">Play</TabsTrigger>
+              <TabsTrigger value="analysis">Analysis</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="play" className="space-y-4">
+              <Card className="p-4">
+                <h2 className="text-xl font-bold mb-4">Game Settings</h2>
+                <EngineSettings
+                  engineLevel={engineLevel}
+                  onLevelChange={setEngineLevel}
+                  engineDepth={engineDepth}
+                  onDepthChange={setEngineDepth}
+                />
+              </Card>
+
+              <Card className="p-4">
+                <h2 className="text-xl font-bold mb-4">Game History</h2>
+                <GameHistory
+                  moves={moves}
+                  currentMoveIndex={currentMoveIndex}
+                  onSelectMove={goToMove}
+                />
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="analysis" className="space-y-4">
+              <Card className="p-4">
+                <h2 className="text-xl font-bold mb-4">Position Analysis</h2>
+                <PositionAnalysis
+                  isThinking={isThinking}
+                  bestMove={bestMove}
+                  evaluation={evaluation}
+                  fen={fen}
+                />
+              </Card>
+
+              <Card className="p-4">
+                <h2 className="text-xl font-bold mb-4">Position Recognition</h2>
+                <PositionRecognition
+                  getRootProps={getRootProps}
+                  getInputProps={getInputProps}
+                  isRecognizing={isRecognizing}
+                  error={recognitionError}
+                />
+              </Card>
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
+
+      {/* Loading overlay */}
+      {isLoading && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <LoadingSpinner />
+        </div>
+      )}
     </main>
   );
 }
